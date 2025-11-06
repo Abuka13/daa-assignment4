@@ -1,56 +1,145 @@
 import java.util.*;
 
-
+/**
+ * Performs Topological Sorting on a Directed Acyclic Graph (DAG).
+ * Supports performance metrics and returns a detailed result object.
+ */
 public class TopologicalSort {
+    private final Metrics metrics;
 
+    public TopologicalSort() {
+        this.metrics = new Metrics();
+    }
 
-    public static List<Integer> kahn(Graph g, Metrics metrics) {
-        int n = g.getN();
-        List<List<Integer>> adj = g.getAdjacencyList();
-        int[] indeg = new int[n];
+    
+    public static class TopoSortResult {
+        private final List<Integer> order;
+        private final boolean isDAG;
+        private final Metrics metrics;
 
-        // Compute indegrees
-        for (Edge e : g.getEdges()) {
-            indeg[e.getV()]++;
-            if (metrics != null) metrics.incrementEdgesExplored();
+        public TopoSortResult(List<Integer> order, boolean isDAG, Metrics metrics) {
+            this.order = order;
+            this.isDAG = isDAG;
+            this.metrics = metrics;
         }
 
-        Queue<Integer> q = new ArrayDeque<>();
+        public List<Integer> getOrder() { return order; }
+        public boolean isDAG() { return isDAG; }
+        public Metrics getMetrics() { return metrics; }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Topological Sort Result:\n");
+            sb.append("  Is DAG: ").append(isDAG).append("\n");
+            sb.append("  Order: ").append(order).append("\n");
+            sb.append(metrics.getSummary());
+            return sb.toString();
+        }
+    }
+
+
+    public TopoSortResult kahnSort(Graph graph) {
+        metrics.reset();
+        metrics.startTiming();
+
+        int n = graph.getN();
+        List<List<Integer>> adj = graph.getAdjacencyList();
+        int[] indegree = new int[n];
+
+        for (Edge e : graph.getEdges()) {
+            indegree[e.getV()]++;
+            metrics.incrementEdgesExplored();
+        }
+
+        Queue<Integer> queue = new LinkedList<>();
         for (int i = 0; i < n; i++) {
-            if (indeg[i] == 0) {
-                q.add(i);
-                if (metrics != null) metrics.incrementStackPushes();
+            if (indegree[i] == 0) {
+                queue.offer(i);
+                metrics.incrementStackPushes();
             }
         }
 
-        List<Integer> order = new ArrayList<>();
-        if (metrics != null) metrics.startTiming();
+        List<Integer> topoOrder = new ArrayList<>();
+        while (!queue.isEmpty()) {
+            int u = queue.poll();
+            metrics.incrementStackPops();
+            topoOrder.add(u);
 
-        while (!q.isEmpty()) {
-            int u = q.poll();
-            if (metrics != null) metrics.incrementStackPops();
-
-            order.add(u);
             for (int v : adj.get(u)) {
-                indeg[v]--;
-                if (indeg[v] == 0) {
-                    q.add(v);
-                    if (metrics != null) metrics.incrementStackPushes();
+                indegree[v]--;
+                metrics.incrementEdgesExplored();
+                if (indegree[v] == 0) {
+                    queue.offer(v);
+                    metrics.incrementStackPushes();
                 }
             }
         }
 
-        if (metrics != null) metrics.stopTiming();
+        metrics.stopTiming();
 
-        // Check for cycle
-        if (order.size() != n) {
-            throw new IllegalStateException("Graph is not a DAG (contains a cycle)");
+        boolean isDAG = topoOrder.size() == n;
+        if (!isDAG) {
+            System.err.println("[Warning] Graph contains a cycle — Topological order is incomplete!");
         }
 
-        if (metrics != null) {
-            System.out.println(metrics.getSummary());
+        return new TopoSortResult(topoOrder, isDAG, metrics);
+    }
+
+
+    public TopoSortResult dfsSort(Graph graph) {
+        metrics.reset();
+        metrics.startTiming();
+
+        int n = graph.getN();
+        List<List<Integer>> adj = graph.getAdjacencyList();
+        boolean[] visited = new boolean[n];
+        boolean[] inStack = new boolean[n];
+        Deque<Integer> stack = new ArrayDeque<>();
+
+        boolean[] hasCycle = {false};
+
+        for (int i = 0; i < n; i++) {
+            if (!visited[i]) {
+                dfs(i, adj, visited, inStack, stack, hasCycle);
+            }
         }
 
-        return order;
+        metrics.stopTiming();
+
+        List<Integer> topoOrder = new ArrayList<>(stack);
+        Collections.reverse(topoOrder);
+
+        boolean isDAG = !hasCycle[0];
+        if (!isDAG) {
+            System.err.println("[Warning] Cycle detected during DFS — graph is not a DAG!");
+        }
+
+        return new TopoSortResult(topoOrder, isDAG, metrics);
+    }
+
+    private void dfs(int u, List<List<Integer>> adj, boolean[] visited,
+                     boolean[] inStack, Deque<Integer> stack, boolean[] hasCycle) {
+        visited[u] = true;
+        inStack[u] = true;
+        metrics.incrementDFSVisits();
+
+        for (int v : adj.get(u)) {
+            metrics.incrementEdgesExplored();
+            if (!visited[v]) {
+                dfs(v, adj, visited, inStack, stack, hasCycle);
+            } else if (inStack[v]) {
+                hasCycle[0] = true;
+            }
+        }
+
+        inStack[u] = false;
+        stack.push(u);
+        metrics.incrementStackPushes();
+    }
+
+
+    public void printResult(TopoSortResult result) {
+        System.out.println(result);
     }
 }
