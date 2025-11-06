@@ -1,9 +1,6 @@
 import java.util.*;
 
-/**
- * Performs Topological Sorting on a Directed Acyclic Graph (DAG).
- * Supports performance metrics and returns a detailed result object.
- */
+
 public class TopologicalSort {
     private final Metrics metrics;
 
@@ -11,7 +8,7 @@ public class TopologicalSort {
         this.metrics = new Metrics();
     }
 
-    
+
     public static class TopoSortResult {
         private final List<Integer> order;
         private final boolean isDAG;
